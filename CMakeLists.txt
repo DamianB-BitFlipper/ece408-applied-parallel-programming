@@ -17,7 +17,7 @@ if(CUDA_FOUND)
     if (MSVC)
         set(CUDA_NVCC_FLAGS "")
     else (MSVC)
-        set(CUDA_NVCC_FLAGS "-gencode;arch=compute_86,code=sm_86;")
+        set(CUDA_NVCC_FLAGS "-gencode;arch=compute_75,code=sm_75;")
     endif (MSVC)
 
     # add -Wextra compiler flag for gcc compilations
@@ -42,8 +42,8 @@ include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CUDA_INCLUDE_DIRS})
 include_directories("lib/")
 
-# Add Template code 
-#CUDA_ADD_EXECUTABLE(MP0_Template mp0_template.cu ${wbhdr} ${wbsrc})
+# Add my implementations
+CUDA_ADD_EXECUTABLE(MP0_Solution implementations/mp0_solution.cu ${wbhdr} ${wbsrc})
 #CUDA_ADD_EXECUTABLE(MP1_Template mp1_template.cu ${wbhdr} ${wbsrc})
 #CUDA_ADD_EXECUTABLE(MP2_Template mp2_template.cu ${wbhdr} ${wbsrc})
 #CUDA_ADD_EXECUTABLE(MP3_Template mp3_template.cu ${wbhdr} ${wbsrc})
@@ -52,15 +52,15 @@ include_directories("lib/")
 #CUDA_ADD_EXECUTABLE(MP6_Template mp6_template.cu ${wbhdr} ${wbsrc})
 
 
-# Add Implementation Code
-CUDA_ADD_EXECUTABLE(MP1_Implement mp1_implement.cu ${wbhdr} ${wbsrc})
-CUDA_ADD_EXECUTABLE(MP2_Implement mp2_implement.cu ${wbhdr} ${wbsrc})
-CUDA_ADD_EXECUTABLE(MP3_Implement mp3_implement.cu ${wbhdr} ${wbsrc})
-CUDA_ADD_EXECUTABLE(MP4_Implement mp4_implement.cu ${wbhdr} ${wbsrc})
-CUDA_ADD_EXECUTABLE(MP5_Implement mp5_implement.cu ${wbhdr} ${wbsrc})
-CUDA_ADD_EXECUTABLE(MP6_Implement mp6_implement.cu ${wbhdr} ${wbsrc})
-CUDA_ADD_EXECUTABLE(MP7_Implement mp7_implement.cu ${wbhdr} ${wbsrc})
-CUDA_ADD_EXECUTABLE(MP8_Implement mp8_implement.cu ${wbhdr} ${wbsrc})
+# Add the solutions code
+CUDA_ADD_EXECUTABLE(MP1_Provided_Solution solutions/mp1_solution.cu ${wbhdr} ${wbsrc})
+CUDA_ADD_EXECUTABLE(MP2_Provided_Solution solutions/mp2_solution.cu ${wbhdr} ${wbsrc})
+CUDA_ADD_EXECUTABLE(MP3_Provided_Solution solutions/mp3_solution.cu ${wbhdr} ${wbsrc})
+CUDA_ADD_EXECUTABLE(MP4_Provided_Solution solutions/mp4_solution.cu ${wbhdr} ${wbsrc})
+CUDA_ADD_EXECUTABLE(MP5_Provided_Solution solutions/mp5_solution.cu ${wbhdr} ${wbsrc})
+CUDA_ADD_EXECUTABLE(MP6_Provided_Solution solutions/mp6_solution.cu ${wbhdr} ${wbsrc})
+CUDA_ADD_EXECUTABLE(MP7_Provided_Solution solutions/mp7_solution.cu ${wbhdr} ${wbsrc})
+CUDA_ADD_EXECUTABLE(MP8_Provided_Solution solutions/mp8_solution.cu ${wbhdr} ${wbsrc})
 #Add Tools
 CUDA_ADD_EXECUTABLE(MP1_Dataset tools/mp1_dataset.cpp ${wbhdr} ${wbsrc})
 CUDA_ADD_EXECUTABLE(MP2_Dataset tools/mp2_dataset.cpp ${wbhdr} ${wbsrc})
