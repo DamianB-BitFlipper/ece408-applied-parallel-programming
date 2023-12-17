@@ -33,7 +33,7 @@ For example, if you want test mp1_implementatiton, you can run
     
     #suppose you are in ./build directory
 
-    ./MP1_Implement -e ../test_data/mp01/0/output.raw -i ../test_data/mp01/0/input0.raw,../test_data/mp01/0/input1.raw -o ../test_data/mp01/0/res.raw -t vector 
+    ./MP1_Implement -e ../test_data/mp01/0/output.raw -i ../test_data/mp01/0/input0.raw,../test_data/mp01/0/input1.raw -o ../test_data/mp01/0/result.raw -t vector 
 And if you see logs like this, then congratulations, you have passed the test!
 
 ![](imgs/correct_res.png)

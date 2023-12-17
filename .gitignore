@@ -1,4 +1,4 @@
 .vscode/
 build
-res.raw
+result.raw
 private_*
