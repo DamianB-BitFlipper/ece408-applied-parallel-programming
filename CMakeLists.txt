@@ -45,7 +45,7 @@ include_directories("lib/")
 # Add my implementations
 CUDA_ADD_EXECUTABLE(MP0_Solution implementations/mp0_solution.cu ${wbhdr} ${wbsrc})
 CUDA_ADD_EXECUTABLE(MP1_Solution implementations/mp1_solution.cu ${wbhdr} ${wbsrc})
-#CUDA_ADD_EXECUTABLE(MP2_Template mp2_template.cu ${wbhdr} ${wbsrc})
+CUDA_ADD_EXECUTABLE(MP2_Solution implementations/mp2_solution.cu ${wbhdr} ${wbsrc})
 #CUDA_ADD_EXECUTABLE(MP3_Template mp3_template.cu ${wbhdr} ${wbsrc})
 #CUDA_ADD_EXECUTABLE(MP4_Template mp4_template.cu ${wbhdr} ${wbsrc})
 #CUDA_ADD_EXECUTABLE(MP5_Template mp5_template.cu ${wbhdr} ${wbsrc})
