@@ -37,11 +37,9 @@ int main(int argc, const char** argv) {
     while(index < argc){
         if(strcmp(argv[index], "-d") == 0){
             index += 1;
-            directory = (char*) malloc(strlen(argv[index]));
+            directory = (char*) malloc(strlen(argv[index]) + 1);
             strcpy(directory, argv[index]);
-            wbLog(TRACE, "data directory is  ", directory); 
-            
-            
+            wbLog(TRACE, "data directory is  ", directory);
         }
         else if(strcmp(argv[index], "-ra") == 0){
             index += 1;
