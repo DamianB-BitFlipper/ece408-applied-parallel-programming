@@ -37,10 +37,19 @@ __global__ void matrixMultiplyShared(float* A, float* B, float* C,
 
     for (int subtileIdx = 0; subtileIdx < numSubTiles; subtileIdx++) {
         // Load the sub-tiles from the input matrices into shared memory
-        subTileA[subTileARow][subTileACol] =
-            A[row * numAColumns + subtileIdx * BLOCK_WIDTH + subTileACol];
-        subTileB[subTileBRow][subTileBCol] =
-            B[(subtileIdx * BLOCK_WIDTH + subTileBRow) * numBColumns + col];
+        if (row < numARows && (subtileIdx * BLOCK_WIDTH + subTileACol) < numAColumns) {
+            subTileA[subTileARow][subTileACol] =
+                A[row * numAColumns + subtileIdx * BLOCK_WIDTH + subTileACol];
+        } else {
+            subTileA[subTileARow][subTileACol] = 0;
+        }
+
+        if ((subtileIdx * BLOCK_WIDTH + subTileBRow) < numBRows && col < numBColumns) {
+            subTileB[subTileBRow][subTileBCol] =
+                B[(subtileIdx * BLOCK_WIDTH + subTileBRow) * numBColumns + col];
+        } else {
+            subTileB[subTileBRow][subTileBCol] = 0;
+        }
 
         // Wait for all threads to finish loading the sub-tiles
         __syncthreads();
@@ -49,10 +58,15 @@ __global__ void matrixMultiplyShared(float* A, float* B, float* C,
         for (int idx = 0; idx < BLOCK_WIDTH; idx++) {
             dot_prod += subTileA[subTileARow][idx] * subTileB[idx][subTileBCol];
         }
+
+        // Wait for all threads to finish the computation before loading the new shared memory
+        __syncthreads();
     }
 
     // Set the `dot_prod` to the `C` matrix
-    C[row * numCColumns + col] = dot_prod;
+    if (row < numCRows && col < numCColumns) {
+        C[row * numCColumns + col] = dot_prod;
+    }
 
     return;
 }
