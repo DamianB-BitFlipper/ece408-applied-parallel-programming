@@ -16,8 +16,8 @@ __global__ void matrixMultiply(float* A, float* B, float* C,
                                int numBRows, int numBColumns,
                                int numCRows, int numCColumns) {
     //@@ Insert code to implement matrix multiplication here
-    int col = blockIdx.x * blockDim.x + threadIdx.x;
-    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    const int col = blockIdx.x * blockDim.x + threadIdx.x;
+    const int row = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (row < numCRows && col < numCColumns) {
         float dot_prod = 0;
@@ -28,7 +28,7 @@ __global__ void matrixMultiply(float* A, float* B, float* C,
     }
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char** argv) {
     wbArg_t args;
     float* hostA; // The A matrix
     float* hostB; // The B matrix
