@@ -47,9 +47,7 @@ CUDA_ADD_EXECUTABLE(MP0_Solution implementations/mp0_solution.cu ${wbhdr} ${wbsr
 CUDA_ADD_EXECUTABLE(MP1_Solution implementations/mp1_solution.cu ${wbhdr} ${wbsrc})
 CUDA_ADD_EXECUTABLE(MP2_Solution implementations/mp2_solution.cu ${wbhdr} ${wbsrc})
 CUDA_ADD_EXECUTABLE(MP3_Solution implementations/mp3_solution.cu ${wbhdr} ${wbsrc})
-#CUDA_ADD_EXECUTABLE(MP4_Template mp4_template.cu ${wbhdr} ${wbsrc})
-#CUDA_ADD_EXECUTABLE(MP5_Template mp5_template.cu ${wbhdr} ${wbsrc})
-#CUDA_ADD_EXECUTABLE(MP6_Template mp6_template.cu ${wbhdr} ${wbsrc})
+CUDA_ADD_EXECUTABLE(MP4_Solution implementations/mp4_solution.cu ${wbhdr} ${wbsrc})
 
 
 # Add the solutions code

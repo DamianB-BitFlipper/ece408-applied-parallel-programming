@@ -12,7 +12,11 @@ def print_help(script_name: str):
     print('  compute_type: type of the compute (vector, matrix or image)')
 
 def get_input_file_id(filepath: Path) -> int:
-    return int(re.search(r'input(\d+)\.raw', filepath.name).group(1))
+    file_id = re.search(r'input(\d*)\.raw', filepath.name).group(1)
+    if file_id == '':
+        return 0
+    else:
+        return int(file_id)
 
 def main():
     # Expect 3 arguments: executable to test, test data directory and compute type
