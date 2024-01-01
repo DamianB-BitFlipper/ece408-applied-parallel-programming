@@ -76,7 +76,7 @@ __global__ void sum(float* input, float* output, int len) {
 int main(int argc, char** argv) {
     wbArg_t args;
     float* hostInput; // The input 1D list
-    float* hostOutput; // The output list
+    float hostOutput; // The output value
     float* deviceInput;
     float* deviceOutput;
     int numInputElements; // number of elements in the input list
@@ -91,7 +91,6 @@ int main(int argc, char** argv) {
     if (numInputElements % (WINDOW_SIZE_PER_BLOCK * BLOCK_SIZE)) {
         numOutputElements++;
     }
-    hostOutput = (float*)malloc(numOutputElements * sizeof(float));
 
     wbTime_stop(Generic, "Importing data and creating memory on host");
 
@@ -122,6 +121,7 @@ int main(int argc, char** argv) {
 
     //@@ Launch the GPU Kernel here
     sum<<<DimGrid, DimBlock>>>(deviceInput, deviceOutput, numInputElements);
+    sum<<<1, DimBlock>>>(deviceOutput, deviceOutput, numOutputElements);
 
     cudaDeviceSynchronize();
     wbTime_stop(Compute, "Performing CUDA computation");
@@ -129,20 +129,10 @@ int main(int argc, char** argv) {
     wbTime_start(Copy, "Copying output memory to the CPU");
 
     //@@ Copy the GPU memory back to the CPU here
-    cudaMemcpy(hostOutput, deviceOutput, numOutputElements * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(&hostOutput, deviceOutput, sizeof(float), cudaMemcpyDeviceToHost);
 
     wbTime_stop(Copy, "Copying output memory to the CPU");
 
-    /********************************************************************
-     * Reduce output vector on the host
-     * NOTE: One could also perform the reduction of the output vector
-     * recursively and support any size input. For simplicity, we do not
-     * require that for this lab.
-     ********************************************************************/
-    int ii;
-    for (ii = 1; ii < numOutputElements; ii++) {
-        hostOutput[0] += hostOutput[ii];
-    }
 
     wbTime_stop(Compute, "Performing sum aggregation computation");
 
@@ -154,10 +144,9 @@ int main(int argc, char** argv) {
 
     wbTime_stop(GPU, "Freeing GPU Memory");
 
-    wbSolution(args, hostOutput, 1);
+    wbSolution(args, &hostOutput, 1);
 
     free(hostInput);
-    free(hostOutput);
 
     return 0;
 }
