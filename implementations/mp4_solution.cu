@@ -18,25 +18,25 @@
     } while(0)
 
 template <uint32_t blockSize>
-__device__ void warpSum(volatile float* partial_sum, uint32_t tid) {
+__device__ void warpSum(volatile float* partialSum, uint32_t tid) {
     // Unroll the last warp of summing computation
     if (blockSize >= 64) {
-        partial_sum[tid] += partial_sum[tid + 32];
+        partialSum[tid] += partialSum[tid + 32];
     }
     if (blockSize >= 32) {
-        partial_sum[tid] += partial_sum[tid + 16];
+        partialSum[tid] += partialSum[tid + 16];
     }
     if (blockSize >= 16) {
-        partial_sum[tid] += partial_sum[tid + 8];
+        partialSum[tid] += partialSum[tid + 8];
     }
     if (blockSize >= 8) {
-        partial_sum[tid] += partial_sum[tid + 4];
+        partialSum[tid] += partialSum[tid + 4];
     }
     if (blockSize >= 4) {
-        partial_sum[tid] += partial_sum[tid + 2];
+        partialSum[tid] += partialSum[tid + 2];
     }
     if (blockSize >= 2) {
-        partial_sum[tid] += partial_sum[tid + 1];
+        partialSum[tid] += partialSum[tid + 1];
     }
     return;
 }
@@ -47,36 +47,16 @@ __global__ void sum(float* input, float* output, int len) {
     //@@ Traverse the reduction tree
     //@@ Write the computed sum of the block to the output vector at the 
     //@@ correct index
-    __shared__ float partial_sum[blockSize];
+    __shared__ float partialSum[blockSize];
 
     uint32_t tid = threadIdx.x;
-    uint32_t start = WINDOW_SIZE_PER_BLOCK * blockIdx.x * blockDim.x;
+    uint32_t gridSize = blockSize * gridDim.x;
+    uint32_t start = blockIdx.x * blockDim.x;
 
-    // Each thread loads 4 values from global memory. It performs one sum outside
-    // of the for-loop and stores the resulting 2 values in shared memory
-    uint32_t input_loc0 = start + tid;
-    bool load_loc0 = input_loc0 < len;
-    uint32_t input_loc1 = input_loc0 + blockDim.x;
-    bool load_loc1 = input_loc1 < len;
-    uint32_t input_loc2 = input_loc1 + blockDim.x;
-    bool load_loc2 = input_loc2 < len;
-    uint32_t input_loc3 = input_loc2 + blockDim.x;
-    bool load_loc3 = input_loc3 < len;
-
-    // Some boundary checking
-    if (load_loc0 && load_loc1) {
-        partial_sum[tid] = input[input_loc0] + input[input_loc1];
-    } else if (load_loc0 && !load_loc1) {
-        partial_sum[tid] = input[input_loc0];
-    } else {
-        partial_sum[tid] = 0;
-    }
-
-    // Some boundary checking
-    if (load_loc2 && load_loc3) {
-        partial_sum[tid] += input[input_loc2] + input[input_loc3];
-    } else if (load_loc2 && !load_loc3) {
-        partial_sum[tid] += input[input_loc2];
+    // Each thread loads and adds its respective value from the grid over all grid strides
+    partialSum[tid] = 0;
+    for (uint32_t inputLoc = start + tid; inputLoc < len; inputLoc += gridSize) {
+        partialSum[tid] += input[inputLoc];
     }
 
     // Wait for all threads to load their respective data
@@ -84,25 +64,25 @@ __global__ void sum(float* input, float* output, int len) {
 
     if (blockSize >= 1024) {
         if (tid < 512) {
-            partial_sum[tid] += partial_sum[tid + 512];
+            partialSum[tid] += partialSum[tid + 512];
         }
         __syncthreads();
     }
     if (blockSize >= 512) {
         if (tid < 256) {
-            partial_sum[tid] += partial_sum[tid + 256];
+            partialSum[tid] += partialSum[tid + 256];
         }
         __syncthreads();
     }
     if (blockSize >= 256) {
         if (tid < 128) {
-            partial_sum[tid] += partial_sum[tid + 128];
+            partialSum[tid] += partialSum[tid + 128];
         }
         __syncthreads();
     }
     if (blockSize >= 128) {
         if (tid < 64) {
-            partial_sum[tid] += partial_sum[tid + 64];
+            partialSum[tid] += partialSum[tid + 64];
         }
         __syncthreads();
     }
@@ -110,12 +90,12 @@ __global__ void sum(float* input, float* output, int len) {
     // Perform the last bit of summation on the final warp with no need to
     // synchronize since it all executes in one warp anyway
     if (tid < WARP_SIZE) {
-        warpSum<blockSize>(partial_sum, tid);
+        warpSum<blockSize>(partialSum, tid);
     }
 
-    // The final partial sum is located at `partial_sum[0]`
+    // The final partial sum is located at `partialSum[0]`
     if (tid == 0) {
-        output[blockIdx.x] = partial_sum[0];
+        output[blockIdx.x] = partialSum[0];
     }
 }
 
