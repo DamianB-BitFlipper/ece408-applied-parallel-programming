@@ -17,6 +17,31 @@
         }                                                  \
     } while(0)
 
+template <uint32_t blockSize>
+__device__ void warpSum(volatile float* partial_sum, uint32_t tid) {
+    // Unroll the last warp of summing computation
+    if (blockSize >= 32) {
+        partial_sum[tid] += partial_sum[tid + 32];
+    }
+    if (blockSize >= 16) {
+        partial_sum[tid] += partial_sum[tid + 16];
+    }
+    if (blockSize >= 8) {
+        partial_sum[tid] += partial_sum[tid + 8];
+    }
+    if (blockSize >= 4) {
+        partial_sum[tid] += partial_sum[tid + 4];
+    }
+    if (blockSize >= 2) {
+        partial_sum[tid] += partial_sum[tid + 2];
+    }
+    if (blockSize >= 1) {
+        partial_sum[tid] += partial_sum[tid + 1];
+    }
+    return;
+}
+
+template <uint32_t blockSize>
 __global__ void sum(float* input, float* output, int len) {
     //@@ Load a segment of the input vector into shared memory
     //@@ Traverse the reduction tree
@@ -59,12 +84,40 @@ __global__ void sum(float* input, float* output, int len) {
     // Wait for all threads to load their respective data
     __syncthreads();
 
-    for (int32_t stride = blockDim.x; stride > 0; stride >>= 1) {
-        int32_t second_index = tid + stride;
-        if (tid < stride) {
-            partial_sum[tid] += partial_sum[second_index];
+    if (blockSize >= 1024) {
+        // tid < 1024 is always true due to hardware limitations, no need to check
+        partial_sum[tid] += partial_sum[tid + 1024];
+        __syncthreads();
+    }
+    if (blockSize >= 512) {
+        if (tid < 512) {
+            partial_sum[tid] += partial_sum[tid + 512];
         }
         __syncthreads();
+    }
+    if (blockSize >= 256) {
+        if (tid < 256) {
+            partial_sum[tid] += partial_sum[tid + 256];
+        }
+        __syncthreads();
+    }
+    if (blockSize >= 128) {
+        if (tid < 128) {
+            partial_sum[tid] += partial_sum[tid + 128];
+        }
+        __syncthreads();
+    }
+    if (blockSize >= 64) {
+        if (tid < 64) {
+            partial_sum[tid] += partial_sum[tid + 64];
+        }
+        __syncthreads();
+    }
+
+    // Perform the last bit of summation on the final warp with no need to
+    // synchronize since it all executes in one warp anyway
+    if (tid < WARP_SIZE) {
+        warpSum<blockSize>(partial_sum, tid);
     }
 
     // The final partial sum is located at `partial_sum[0]`
@@ -120,8 +173,8 @@ int main(int argc, char** argv) {
     wbTime_start(Compute, "Performing sum aggregation computation");
 
     //@@ Launch the GPU Kernel here
-    sum<<<DimGrid, DimBlock>>>(deviceInput, deviceOutput, numInputElements);
-    sum<<<1, DimBlock>>>(deviceOutput, deviceOutput, numOutputElements);
+    sum<BLOCK_SIZE><<<DimGrid, DimBlock>>>(deviceInput, deviceOutput, numInputElements);
+    sum<BLOCK_SIZE><<<1, DimBlock>>>(deviceOutput, deviceOutput, numOutputElements);
 
     cudaDeviceSynchronize();
     wbTime_stop(Compute, "Performing CUDA computation");
