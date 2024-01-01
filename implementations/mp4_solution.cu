@@ -15,7 +15,7 @@
         }                                                  \
     } while(0)
 
-__global__ void total(float* input, float* output, int len) {
+__global__ void sum(float* input, float* output, int len) {
     //@@ Load a segment of the input vector into shared memory
     //@@ Traverse the reduction tree
     //@@ Write the computed sum of the block to the output vector at the 
@@ -46,8 +46,9 @@ __global__ void total(float* input, float* output, int len) {
     __syncthreads();
 
     for (int32_t stride = 1; stride <= blockDim.x; stride *= 2) {
-        if (tid % stride == 0) {
-            partial_sum[2 * tid] += partial_sum[2 * tid + stride];
+        int32_t src_index = 2 * tid + stride;
+        if (src_index < 2 * BLOCK_SIZE) {
+            partial_sum[2 * tid] += partial_sum[src_index];
         }
         __syncthreads();
     }
@@ -106,7 +107,7 @@ int main(int argc, char** argv) {
     wbTime_start(Compute, "Performing sum aggregation computation");
 
     //@@ Launch the GPU Kernel here
-    total<<<DimGrid, DimBlock>>>(deviceInput, deviceOutput, numInputElements);
+    sum<<<DimGrid, DimBlock>>>(deviceInput, deviceOutput, numInputElements);
 
     cudaDeviceSynchronize();
     wbTime_stop(Compute, "Performing CUDA computation");
