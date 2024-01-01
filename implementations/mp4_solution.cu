@@ -45,10 +45,10 @@ __global__ void sum(float* input, float* output, int len) {
     // Wait for all threads to load their respective data
     __syncthreads();
 
-    for (int32_t stride = 1; stride <= blockDim.x; stride *= 2) {
-        int32_t src_index = 2 * tid + stride;
-        if (src_index < 2 * BLOCK_SIZE) {
-            partial_sum[2 * tid] += partial_sum[src_index];
+    for (int32_t stride = blockDim.x; stride > 0; stride >>= 1) {
+        int32_t second_index = tid + stride;
+        if (tid < stride) {
+            partial_sum[tid] += partial_sum[second_index];
         }
         __syncthreads();
     }
