@@ -20,22 +20,22 @@
 template <uint32_t blockSize>
 __device__ void warpSum(volatile float* partial_sum, uint32_t tid) {
     // Unroll the last warp of summing computation
-    if (blockSize >= 32) {
+    if (blockSize >= 64) {
         partial_sum[tid] += partial_sum[tid + 32];
     }
-    if (blockSize >= 16) {
+    if (blockSize >= 32) {
         partial_sum[tid] += partial_sum[tid + 16];
     }
-    if (blockSize >= 8) {
+    if (blockSize >= 16) {
         partial_sum[tid] += partial_sum[tid + 8];
     }
-    if (blockSize >= 4) {
+    if (blockSize >= 8) {
         partial_sum[tid] += partial_sum[tid + 4];
     }
-    if (blockSize >= 2) {
+    if (blockSize >= 4) {
         partial_sum[tid] += partial_sum[tid + 2];
     }
-    if (blockSize >= 1) {
+    if (blockSize >= 2) {
         partial_sum[tid] += partial_sum[tid + 1];
     }
     return;
@@ -47,7 +47,7 @@ __global__ void sum(float* input, float* output, int len) {
     //@@ Traverse the reduction tree
     //@@ Write the computed sum of the block to the output vector at the 
     //@@ correct index
-    __shared__ float partial_sum[2 * BLOCK_SIZE];
+    __shared__ float partial_sum[blockSize];
 
     uint32_t tid = threadIdx.x;
     uint32_t start = WINDOW_SIZE_PER_BLOCK * blockIdx.x * blockDim.x;
@@ -65,49 +65,42 @@ __global__ void sum(float* input, float* output, int len) {
 
     // Some boundary checking
     if (load_loc0 && load_loc1) {
-        partial_sum[2 * tid] = input[input_loc0] + input[input_loc1];
+        partial_sum[tid] = input[input_loc0] + input[input_loc1];
     } else if (load_loc0 && !load_loc1) {
-        partial_sum[2 * tid] = input[input_loc0];
+        partial_sum[tid] = input[input_loc0];
     } else {
-        partial_sum[2 * tid] = 0;
+        partial_sum[tid] = 0;
     }
 
     // Some boundary checking
     if (load_loc2 && load_loc3) {
-        partial_sum[2 * tid + 1] = input[input_loc2] + input[input_loc3];
+        partial_sum[tid] += input[input_loc2] + input[input_loc3];
     } else if (load_loc2 && !load_loc3) {
-        partial_sum[2 * tid + 1] = input[input_loc2];
-    } else {
-        partial_sum[2 * tid + 1] = 0;
+        partial_sum[tid] += input[input_loc2];
     }
 
     // Wait for all threads to load their respective data
     __syncthreads();
 
     if (blockSize >= 1024) {
-        // tid < 1024 is always true due to hardware limitations, no need to check
-        partial_sum[tid] += partial_sum[tid + 1024];
-        __syncthreads();
-    }
-    if (blockSize >= 512) {
         if (tid < 512) {
             partial_sum[tid] += partial_sum[tid + 512];
         }
         __syncthreads();
     }
-    if (blockSize >= 256) {
+    if (blockSize >= 512) {
         if (tid < 256) {
             partial_sum[tid] += partial_sum[tid + 256];
         }
         __syncthreads();
     }
-    if (blockSize >= 128) {
+    if (blockSize >= 256) {
         if (tid < 128) {
             partial_sum[tid] += partial_sum[tid + 128];
         }
         __syncthreads();
     }
-    if (blockSize >= 64) {
+    if (blockSize >= 128) {
         if (tid < 64) {
             partial_sum[tid] += partial_sum[tid + 64];
         }
