@@ -6,6 +6,8 @@
 #include <cstdint>
 
 #define BLOCK_SIZE 512 //@@ You can change this
+#define WARP_SIZE 32
+#define WINDOW_SIZE_PER_BLOCK 4
 
 #define wbCheck(stmt) do {                                 \
         cudaError_t err = stmt;                            \
@@ -23,21 +25,33 @@ __global__ void sum(float* input, float* output, int len) {
     __shared__ float partial_sum[2 * BLOCK_SIZE];
 
     uint32_t tid = threadIdx.x;
-    uint32_t start = 2 * blockIdx.x * blockDim.x;
+    uint32_t start = WINDOW_SIZE_PER_BLOCK * blockIdx.x * blockDim.x;
 
-    // Each thread loads 2 values into shared memory `partial_sum`
-    uint32_t input_loc = start + 2 * tid;
+    // Each thread loads 4 values from global memory. It performs one sum outside
+    // of the for-loop and stores the resulting 2 values in shared memory
+    uint32_t input_loc0 = start + tid;
+    bool load_loc0 = input_loc0 < len;
+    uint32_t input_loc1 = input_loc0 + blockDim.x;
+    bool load_loc1 = input_loc1 < len;
+    uint32_t input_loc2 = input_loc1 + blockDim.x;
+    bool load_loc2 = input_loc2 < len;
+    uint32_t input_loc3 = input_loc2 + blockDim.x;
+    bool load_loc3 = input_loc3 < len;
 
     // Some boundary checking
-    if (input_loc < len) {
-        partial_sum[2 * tid] = input[input_loc];
+    if (load_loc0 && load_loc1) {
+        partial_sum[2 * tid] = input[input_loc0] + input[input_loc1];
+    } else if (load_loc0 && !load_loc1) {
+        partial_sum[2 * tid] = input[input_loc0];
     } else {
         partial_sum[2 * tid] = 0;
     }
 
     // Some boundary checking
-    if (input_loc + 1 < len) {
-        partial_sum[2 * tid + 1] = input[input_loc + 1];
+    if (load_loc2 && load_loc3) {
+        partial_sum[2 * tid + 1] = input[input_loc2] + input[input_loc3];
+    } else if (load_loc2 && !load_loc3) {
+        partial_sum[2 * tid + 1] = input[input_loc2];
     } else {
         partial_sum[2 * tid + 1] = 0;
     }
@@ -73,8 +87,8 @@ int main(int argc, char** argv) {
     wbTime_start(Generic, "Importing data and creating memory on host");
     hostInput = (float*)wbImport(wbArg_getInputFile(args, 0), &numInputElements);
 
-    numOutputElements = numInputElements / (2 * BLOCK_SIZE);
-    if (numInputElements % (2 * BLOCK_SIZE)) {
+    numOutputElements = numInputElements / (WINDOW_SIZE_PER_BLOCK * BLOCK_SIZE);
+    if (numInputElements % (WINDOW_SIZE_PER_BLOCK * BLOCK_SIZE)) {
         numOutputElements++;
     }
     hostOutput = (float*)malloc(numOutputElements * sizeof(float));
