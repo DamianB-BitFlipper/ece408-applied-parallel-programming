@@ -25,12 +25,12 @@ __device__ void scanAddUpSweep(volatile float* runningSum_sm, int32_t len) {
          validThreads > 0;
          validThreads /= 2, stride *= 2) {
 
-        // There were `tid` threads consuming `2 * stride` space before the current thread
-        int32_t offset{ static_cast<int32_t>(2 * stride * tid) };
-        int32_t leftVal{ offset + stride - 1 };
-        int32_t rightVal{ leftVal + stride };
-
         if (tid < validThreads) {
+            // There were `tid` threads consuming `2 * stride` space before the current thread
+            int32_t offset{ static_cast<int32_t>(2 * stride * tid) };
+            int32_t leftVal{ offset + stride - 1 };
+            int32_t rightVal{ leftVal + stride };
+
             runningSum_sm[rightVal] += runningSum_sm[leftVal];
         }
 
@@ -38,28 +38,20 @@ __device__ void scanAddUpSweep(volatile float* runningSum_sm, int32_t len) {
     }
 }
 
-__device__ void scanAddDownSweep(
-    volatile float* runningSum_sm,
-    int32_t len,
-    int32_t& pout,
-    int32_t& pin
-) {
+__device__ void scanAddDownSweep(volatile float* runningSum_sm, int32_t len) {
     uint32_t tid{ threadIdx.x };
 
-    for (int32_t stride{ len / 2 }, i{ 1 }; stride > 1; stride /= 2, i++) {
-        int32_t lookBack{ stride / 2 };
-        // If the current thread is on a strided position, add the stride amounts
-        if (tid > lookBack && (tid + 1 - lookBack) % stride == 0) {
-            runningSum_sm[pout + tid] =
-                runningSum_sm[pin + tid] + runningSum_sm[pin + tid - lookBack];
-        } else {
-            // Simply copy the value over
-            runningSum_sm[pout + tid] = runningSum_sm[pin + tid];
-        }
+    for (int32_t validThreads{ 2 }, stride{ len / 2 };
+         validThreads <= len / 2;
+         validThreads *= 2, stride /= 2) {
 
-        // Swap the `pout`  and `pin` locations for the next iteration
-        pout = BLOCK_SIZE - pout;
-        pin = BLOCK_SIZE - pin;
+        int32_t leftVal{ static_cast<int32_t>(stride * (tid + 1) - 1) };
+        int32_t rightVal{ leftVal + stride / 2 };
+
+        // The last `tid` is always invalid because `rightVal` is out of bounds
+        if (tid < validThreads - 1) {
+            runningSum_sm[rightVal] += runningSum_sm[leftVal];
+        }
 
         __syncthreads();
     }
@@ -74,23 +66,19 @@ __global__ void scanAddExclusive(float* input, float* output, int32_t len) {
 
     uint32_t tid{ threadIdx.x };
 
-    // Whether to read in, write out from the 0th or 1st `BLOCK_SIZE` of `runningSum_sm`
-    int32_t pout{ BLOCK_SIZE }, pin{ 0 };
-
     // Load the values from global memory into shared memory
-    runningSum_sm[pin + tid] = (tid < len) ? input[tid] : 0;
-    runningSum_sm[pout + tid] = 0;
+    runningSum_sm[tid] = (tid < len) ? input[tid] : 0;
     __syncthreads();
 
     // Run the up-sweep routine
     scanAddUpSweep(runningSum_sm, len);
 
     // Run the down-sweep routine
-    scanAddDownSweep(runningSum_sm, len, pout, pin);
+    scanAddDownSweep(runningSum_sm, len);
 
     // Copy from the `runningSum_sm` to the `output`
     if (tid < len) {
-        output[tid] = runningSum_sm[pin + tid];
+        output[tid] = runningSum_sm[tid];
     }
 
     return;
@@ -133,7 +121,7 @@ int main(int argc, char** argv) {
     wbTime_start(Compute, "Performing CUDA computation");
     //@@ Modify this to complete the functionality of the scan
     //@@ on the deivce
-    scanAddExclusive<<<DimGrid, DimBlock, 2 * BLOCK_SIZE * sizeof(float)>>>(deviceInput, deviceOutput, numElements);
+    scanAddExclusive<<<DimGrid, DimBlock, BLOCK_SIZE * sizeof(float)>>>(deviceInput, deviceOutput, numElements);
 
     cudaDeviceSynchronize();
     wbTime_stop(Compute, "Performing CUDA computation");
