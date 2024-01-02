@@ -16,28 +16,23 @@
         }                                                  \
     } while(0)
 
-__device__ void scanAddUpSweep(
-    volatile float* runningSum_sm,
-    int32_t len,
-    int32_t& pout,
-    int32_t& pin
-) {
+__device__ void scanAddUpSweep(volatile float* runningSum_sm, int32_t len) {
+    /* Perform the up-sweep in-place.
+     **/
     uint32_t tid{ threadIdx.x };
 
-    for (int32_t stride{ 1 }; stride < len; stride *= 2) {
-        int32_t threadMod{ stride * 2 };
-        // If the current thread is on a strided position, add the stride amounts
-        if ((tid + 1) % threadMod == 0) {
-            runningSum_sm[pout + tid] =
-                runningSum_sm[pin + tid - stride] + runningSum_sm[pin + tid];
-        } else {
-            // Simply copy the value over
-            runningSum_sm[pout + tid] = runningSum_sm[pin + tid];
-        }
+    for (int32_t validThreads{ len / 2 }, stride{ 1 };
+         validThreads > 0;
+         validThreads /= 2, stride *= 2) {
 
-        // Swap the `pout`  and `pin` locations for the next iteration
-        pout = BLOCK_SIZE - pout;
-        pin = BLOCK_SIZE - pin;
+        // There were `tid` threads consuming `2 * stride` space before the current thread
+        int32_t offset{ static_cast<int32_t>(2 * stride * tid) };
+        int32_t leftVal{ offset + stride - 1 };
+        int32_t rightVal{ leftVal + stride };
+
+        if (tid < validThreads) {
+            runningSum_sm[rightVal] += runningSum_sm[leftVal];
+        }
 
         __syncthreads();
     }
@@ -88,7 +83,7 @@ __global__ void scanAddExclusive(float* input, float* output, int32_t len) {
     __syncthreads();
 
     // Run the up-sweep routine
-    scanAddUpSweep(runningSum_sm, len, pout, pin);
+    scanAddUpSweep(runningSum_sm, len);
 
     // Run the down-sweep routine
     scanAddDownSweep(runningSum_sm, len, pout, pin);
