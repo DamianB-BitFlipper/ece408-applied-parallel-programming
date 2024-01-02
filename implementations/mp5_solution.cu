@@ -3,6 +3,8 @@
 // Output its prefix sum = {lst[0], lst[0] + lst[1], lst[0] + lst[1] + ... + lst[n-1]}
 
 #include <wb.h>
+#include <cstdint>
+#include <iostream>
 
 #define BLOCK_SIZE 512 //@@ You can change this
 
@@ -14,28 +16,22 @@
         }                                                  \
     } while(0)
 
-__global__ void scanAddExclusive(float* input, float* output, int len) {
-    //@@ Modify the body of this function to complete the functionality of
-    //@@ the scan on the device
-    //@@ You may need multiple kernel calls; write your kernels before this
-    //@@ function and call them from here
-    __shared__ float runningSum_sm[2 * BLOCK_SIZE];
-
+__device__ void scanAddUpSweep(
+    volatile float* runningSum_sm,
+    int32_t len,
+    int32_t& pout,
+    int32_t& pin
+) {
     uint32_t tid{ threadIdx.x };
 
-    // Whether to read in, write out from the 0th or 1st `BLOCK_SIZE` of `runningSum_sm`
-    int32_t pout{ BLOCK_SIZE }, pin{ 0 };
-
-    runningSum_sm[pin + tid] = (tid < len) ? input[tid] : 0;
-    runningSum_sm[pout + tid] = 0;
-    __syncthreads();
-
     for (int32_t stride{ 1 }; stride < len; stride *= 2) {
-        // Add the value from `stride` before
-        if (tid >= stride) {
-            runningSum_sm[pout + tid] = runningSum_sm[pin + tid] + runningSum_sm[pin + tid - stride];
+        int32_t threadMod{ stride * 2 };
+        // If the current thread is on a strided position, add the stride amounts
+        if ((tid + 1) % threadMod == 0) {
+            runningSum_sm[pout + tid] =
+                runningSum_sm[pin + tid - stride] + runningSum_sm[pin + tid];
         } else {
-            // Copy from `pin` to `pout`
+            // Simply copy the value over
             runningSum_sm[pout + tid] = runningSum_sm[pin + tid];
         }
 
@@ -45,6 +41,57 @@ __global__ void scanAddExclusive(float* input, float* output, int len) {
 
         __syncthreads();
     }
+}
+
+__device__ void scanAddDownSweep(
+    volatile float* runningSum_sm,
+    int32_t len,
+    int32_t& pout,
+    int32_t& pin
+) {
+    uint32_t tid{ threadIdx.x };
+
+    for (int32_t stride{ len / 2 }, i{ 1 }; stride > 1; stride /= 2, i++) {
+        int32_t lookBack{ stride / 2 };
+        // If the current thread is on a strided position, add the stride amounts
+        if (tid > lookBack && (tid + 1 - lookBack) % stride == 0) {
+            runningSum_sm[pout + tid] =
+                runningSum_sm[pin + tid] + runningSum_sm[pin + tid - lookBack];
+        } else {
+            // Simply copy the value over
+            runningSum_sm[pout + tid] = runningSum_sm[pin + tid];
+        }
+
+        // Swap the `pout`  and `pin` locations for the next iteration
+        pout = BLOCK_SIZE - pout;
+        pin = BLOCK_SIZE - pin;
+
+        __syncthreads();
+    }
+}
+
+__global__ void scanAddExclusive(float* input, float* output, int32_t len) {
+    //@@ Modify the body of this function to complete the functionality of
+    //@@ the scan on the device
+    //@@ You may need multiple kernel calls; write your kernels before this
+    //@@ function and call them from here
+    extern __shared__ float runningSum_sm[];
+
+    uint32_t tid{ threadIdx.x };
+
+    // Whether to read in, write out from the 0th or 1st `BLOCK_SIZE` of `runningSum_sm`
+    int32_t pout{ BLOCK_SIZE }, pin{ 0 };
+
+    // Load the values from global memory into shared memory
+    runningSum_sm[pin + tid] = (tid < len) ? input[tid] : 0;
+    runningSum_sm[pout + tid] = 0;
+    __syncthreads();
+
+    // Run the up-sweep routine
+    scanAddUpSweep(runningSum_sm, len, pout, pin);
+
+    // Run the down-sweep routine
+    scanAddDownSweep(runningSum_sm, len, pout, pin);
 
     // Copy from the `runningSum_sm` to the `output`
     if (tid < len) {
@@ -91,7 +138,7 @@ int main(int argc, char** argv) {
     wbTime_start(Compute, "Performing CUDA computation");
     //@@ Modify this to complete the functionality of the scan
     //@@ on the deivce
-    scanAddExclusive<<<DimGrid, DimBlock>>>(deviceInput, deviceOutput, numElements);
+    scanAddExclusive<<<DimGrid, DimBlock, 2 * BLOCK_SIZE * sizeof(float)>>>(deviceInput, deviceOutput, numElements);
 
     cudaDeviceSynchronize();
     wbTime_stop(Compute, "Performing CUDA computation");
